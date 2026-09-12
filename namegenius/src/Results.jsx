@@ -4,7 +4,7 @@ import { generateNames } from './generator'
 
 const TLD_FILTERS = ['any TLD', '.com', '.io', '.co']
 const LENGTH_FILTERS = ['any', 'short', 'catchy']
-const PAGE_SIZE = 6
+const PAGE_SIZE = 5
 
 const CARD_THEMES = [
   { bg: 'bg-[#fff9f6]', border: 'border-[#ffe2d6]', headerBg: 'bg-[#fff0e6]', badgeText: 'text-[#d95d1e]', pinBg: 'bg-[#f97316]' },
