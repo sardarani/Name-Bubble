@@ -7,4 +7,6 @@ dist/
 .env.*
 *.local
 .vite/
+*.key
+*gemini*
 

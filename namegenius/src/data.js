@@ -32,6 +32,11 @@ export function isAvailable(item, tldFilter) {
   return item.tlds[primaryTld(item, tldFilter)]
 }
 
+export function matchesTld(item, tldFilter) {
+  if (!tldFilter || tldFilter === 'any TLD') return true
+  return Boolean(item.tlds[tldFilter])
+}
+
 export function matchesLength(item, lengthFilter) {
   if (lengthFilter === 'short') return item.slug.length <= 6
   if (lengthFilter === 'catchy') return item.tags.includes('catchy')

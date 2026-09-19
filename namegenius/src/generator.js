@@ -1,9 +1,8 @@
-import { TLD_ORDER } from './data'
+import { TLD_ORDER } from './data.js'
+import { fetchGeminiNameIdeas } from './services/gemini.js'
+import { checkAllTlds, sanitizeSlug } from './services/domainChecker.js'
 
-// Improved, deterministic name generator.
-// Derives brandable candidates from the user's keyword, description,
-// competitors and any brand-discovery answers, then returns a varied set
-// that reshuffles on each `generation` and reflects newly given answers.
+// Improved name generator with real Gemini API integration + real domain lookups + local fallback.
 
 const STOP = new Set([
   'the', 'and', 'for', 'with', 'your', 'you', 'our', 'from', 'into', 'that',
@@ -60,15 +59,15 @@ function tokens(str) {
     .filter((w) => w.length >= 3 && !STOP.has(w))
 }
 
-// Deterministic per-TLD availability with realistic scarcity (.com rare).
-function tldAvailability(slug) {
+// Deterministic per-TLD availability fallback with realistic scarcity (.com rare).
+export function tldAvailability(slug) {
   const thresh = { '.com': 22, '.io': 55, '.co': 62 }
   const map = {}
   for (const t of TLD_ORDER) map[t] = hashStr(slug + t) % 100 < thresh[t]
   return map
 }
 
-function tagsFor(slug, roots) {
+export function tagsFor(slug, roots = []) {
   const tags = []
   if (slug.length <= 6) tags.push('short')
   const last = slug[slug.length - 1]
@@ -107,7 +106,11 @@ function buildCandidates(seed, mods) {
   return set
 }
 
+/**
+ * Synchronous local name generator (offline fallback & instant initial render).
+ */
 export function generateNames(brief, generation = 0, answers = {}) {
+  if (!brief?.name?.trim()) return []
   const seedTokens = tokens(brief?.name)
   const seed = seedTokens[0] || 'brand'
   const baseMods = [
@@ -132,8 +135,6 @@ export function generateNames(brief, generation = 0, answers = {}) {
   )
   items = shuffle(items, rnd)
 
-  // After the user answers a follow-up, surface names shaped by that answer
-  // first so the refinement is visible (stable sort keeps shuffle order within).
   if (answerTokens.length) {
     items.sort((a, b) => {
       const aw = answerTokens.some((t) => a.slug.includes(t)) ? 0 : 1
@@ -142,5 +143,70 @@ export function generateNames(brief, generation = 0, answers = {}) {
     })
   }
 
-  return items.slice(0, 18)
+  return items.slice(0, 45)
+}
+
+/**
+ * Async name generator using Gemini API for ideas + real domain lookups for availability.
+ * Pads with local candidates if Gemini is slow, missing key, or returns too few items.
+ */
+export async function generateNamesAsync(brief, generation = 0, answers = {}) {
+  if (!brief?.name?.trim()) return []
+  const seedTokens = tokens(brief?.name)
+  const seed = seedTokens[0] || 'brand'
+  const baseMods = [
+    ...seedTokens.slice(1),
+    ...tokens(brief?.description),
+    ...tokens(brief?.competitors),
+  ]
+  const answerTokens = Object.values(answers || {}).flatMap((v) => tokens(v))
+  const mods = Array.from(new Set([...baseMods, ...answerTokens]))
+  const roots = [seed, ...mods]
+
+  let geminiNames = []
+  try {
+    geminiNames = await fetchGeminiNameIdeas(brief, generation, answers)
+  } catch (err) {
+    console.warn('Gemini API fetch failed/skipped, using local fallback:', err.message)
+  }
+
+  // Create name objects map (slug -> { name, slug })
+  const candidatesMap = new Map()
+
+  // Add Gemini names first
+  for (const name of geminiNames) {
+    const slug = sanitizeSlug(name)
+    if (slug && slug.length >= 3 && !candidatesMap.has(slug)) {
+      candidatesMap.set(slug, { name: name.trim(), slug })
+    }
+  }
+
+  // Always supplement with local generator names to ensure robust candidates deck
+  const localItems = generateNames(brief, generation, answers)
+  for (const item of localItems) {
+    if (!candidatesMap.has(item.slug)) {
+      candidatesMap.set(item.slug, { name: item.name, slug: item.slug })
+    }
+  }
+
+  const combinedList = Array.from(candidatesMap.values()).slice(0, 30)
+
+  // Perform concurrent real domain availability checks for the top candidates
+  const itemsWithDomains = await Promise.all(
+    combinedList.map(async (item) => {
+      let tldsMap = {}
+      try {
+        tldsMap = await checkAllTlds(item.slug)
+      } catch {
+        tldsMap = tldAvailability(item.slug)
+      }
+      return {
+        ...item,
+        tlds: tldsMap,
+        tags: tagsFor(item.slug, roots),
+      }
+    })
+  )
+
+  return itemsWithDomains
 }

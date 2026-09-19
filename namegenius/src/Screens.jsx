@@ -78,17 +78,20 @@ function TldStrip({ item }) {
   )
 }
 
-// S4 — Shortlist
+// S4 — Favorites / Shortlist
 export function Shortlist({ saved, onRemove, onBack, onNavigate }) {
   return (
     <Shell
-      title="Shortlist"
-      meta={saved.length > 0 ? `${saved.length} ${saved.length === 1 ? 'name' : 'names'}` : null}
+      title="Favorites"
+      meta={saved.length > 0 ? `${saved.length} ${saved.length === 1 ? 'favorite' : 'favorites'}` : null}
       onBack={onBack}
     >
       {saved.length === 0 ? (
         <div className="rounded-[24px] border border-dashed border-[#cac4d0] bg-[#fef7ff] py-24 text-center">
-          <p className="text-[17px] font-normal leading-[1.5] text-[#8a8a8a]">No saved names yet.</p>
+          <p className="text-[18px] font-semibold leading-[1.4] text-[#1d1b20]">No favorite names saved yet.</p>
+          <p className="mt-2 text-[14px] font-normal leading-[1.5] text-[#8a8a8a]">
+            Click the heart button on any domain card to save your favorite names here.
+          </p>
           <div className="mt-6">
             <PrimaryButton onClick={() => onNavigate('results')}>
               Browse results
@@ -103,7 +106,7 @@ export function Shortlist({ saved, onRemove, onBack, onNavigate }) {
             return (
               <div
                 key={item.slug}
-                className={`overflow-hidden rounded-[24px] border ${theme.border} ${theme.bg} p-6 shadow-sm`}
+                className={`overflow-hidden rounded-[24px] border ${theme.border} ${theme.bg} p-6 shadow-sm transition-all hover:shadow-md`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex flex-wrap items-baseline gap-5">
@@ -118,9 +121,10 @@ export function Shortlist({ saved, onRemove, onBack, onNavigate }) {
                     <TldStrip item={item} />
                     <button
                       type="button"
-                      aria-label={`Remove ${item.name}`}
+                      aria-label={`Remove ${item.name} from favorites`}
+                      title="Remove from favorites"
                       onClick={() => onRemove(item)}
-                      className="text-[22px] leading-none text-[#8a8a8a] transition-colors hover:text-[#1d1b20]"
+                      className="flex size-8 items-center justify-center rounded-full bg-[#1d1b20] text-[16px] leading-none text-white shadow-sm transition-transform hover:scale-105 active:scale-95"
                     >
                       ×
                     </button>
@@ -129,7 +133,7 @@ export function Shortlist({ saved, onRemove, onBack, onNavigate }) {
               </div>
             )
           })}
-          <div className="mt-4">
+          <div className="mt-4 flex items-center gap-6">
             <button
               type="button"
               onClick={() => onNavigate('results')}

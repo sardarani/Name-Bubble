@@ -50,6 +50,11 @@ function App() {
     return () => window.removeEventListener('click', handleGlobalClick, true)
   }, [])
 
+  // Automatic scroll-to-top whenever the navigation view changes.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [view])
+
   // Shared, app-wide state so every screen works off the same data.
   const [brief, setBrief] = useState(EMPTY_BRIEF)
   const [saved, setSaved] = useState([]) // name items on the shortlist
@@ -174,8 +179,10 @@ function App() {
       return (
         <Brief
           initial={brief}
+          savedCount={saved.length}
           onFindNames={startSearch}
           onQuestions={() => navigate('questions')}
+          onNavigate={navigate}
         />
       )
   }
