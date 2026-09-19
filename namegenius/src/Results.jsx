@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { QUESTIONS, availableTlds, domainFor, isAvailable, matchesLength, matchesTld } from './data'
-import { generateNames } from './generator'
+import { generateNames, generateNamesAsync } from './generator'
 
 const TLD_FILTERS = ['any TLD', '.com', '.io', '.co']
 const LENGTH_FILTERS = ['any', 'short', 'catchy']
@@ -31,13 +31,38 @@ function Results({
 }) {
   const [tldFilter, setTldFilter] = useState('any TLD')
   const [lengthFilter, setLengthFilter] = useState('any')
+  const [items, setItems] = useState(() => generateNames(brief, generation, answers))
+  const [isLiveLoading, setIsLiveLoading] = useState(true)
 
-  const generated = useMemo(
-    () => generateNames(brief, generation, answers),
-    [brief, generation, answers]
-  )
+  useEffect(() => {
+    let active = true
+    setIsLiveLoading(true)
 
-  const filtered = generated.filter(
+    // Initial local fallback render for instant feedback
+    setItems(generateNames(brief, generation, answers))
+
+    // Fetch real Gemini ideas + live domain availability asynchronously
+    generateNamesAsync(brief, generation, answers)
+      .then((liveItems) => {
+        if (active && liveItems && liveItems.length > 0) {
+          setItems(liveItems)
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed async name generation, keeping local fallback:', err)
+      })
+      .finally(() => {
+        if (active) {
+          setIsLiveLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [brief, generation, answers])
+
+  const filtered = items.filter(
     (i) => matchesTld(i, tldFilter) && matchesLength(i, lengthFilter)
   )
   const shown = filtered.slice(0, PAGE_SIZE)
@@ -124,8 +149,8 @@ function Results({
                 />
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-[#ffe2d6] bg-white px-4 py-1.5 text-[12px] font-semibold text-[#1d1b20] shadow-sm">
-                <span className="size-2 rounded-full bg-[#16a34a] animate-pulse" />
-                {filtered.length} names available
+                <span className={`size-2 rounded-full ${isLiveLoading ? 'bg-[#3b82f6]' : 'bg-[#16a34a]'} animate-pulse`} />
+                {isLiveLoading ? 'Checking live availability…' : `${filtered.length} names available`}
               </div>
             </div>
 
