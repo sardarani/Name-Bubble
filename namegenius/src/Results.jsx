@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { QUESTIONS, availableTlds, domainFor, isAvailable, matchesLength } from './data'
+import { QUESTIONS, availableTlds, domainFor, isAvailable, matchesLength, matchesTld } from './data'
 import { generateNames } from './generator'
 
 const TLD_FILTERS = ['any TLD', '.com', '.io', '.co']
@@ -37,7 +37,9 @@ function Results({
     [brief, generation, answers]
   )
 
-  const filtered = generated.filter((i) => matchesLength(i, lengthFilter))
+  const filtered = generated.filter(
+    (i) => matchesTld(i, tldFilter) && matchesLength(i, lengthFilter)
+  )
   const shown = filtered.slice(0, PAGE_SIZE)
   // Strongest first: the name available on the most TLDs leads as the top pick.
   const sorted = [...shown].sort(
@@ -56,6 +58,18 @@ function Results({
         {/* header */}
         <div className="flex items-center justify-between">
           <div className="text-lg font-extrabold tracking-tight text-[#1d1b20]">Domain bubble</div>
+          {onNavigate && saved?.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigate('shortlist')}
+              className="inline-flex items-center gap-2 rounded-full border border-[#ffe2d6] bg-[#fff0e6] px-4 py-1.5 text-[13px] font-semibold text-[#d95d1e] shadow-sm transition-all hover:bg-[#ffe2d6] active:scale-[0.98]"
+            >
+              <span className="text-[14px]">♥</span> Favorites
+              <span className="rounded-full bg-[#d95d1e] px-2 py-0.5 text-[10px] font-extrabold leading-none text-white">
+                {saved.length}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* back + hero header */}
@@ -152,7 +166,7 @@ function Results({
                   {/* 2. Skale Pinned Top Pick Card (Index 01) */}
                   {topPick && (
                     <SkaleCard
-                      key={`top-${topPick.slug}-${generation}`}
+                      key={`top-${topPick.slug}-${generation}-${tldFilter}`}
                       item={topPick}
                       index={1}
                       tldFilter={tldFilter}
@@ -164,10 +178,10 @@ function Results({
                     />
                   )}
 
-                  {/* 3. Skale Staggered Note Deck Rows (Index 02 to 06) */}
+                  {/* 3. Skale Staggered Note Deck Rows (Index 02 to 05) */}
                   {rest.map((item, i) => (
                     <SkaleCard
-                      key={`row-${item.slug}-${generation}-${i}`}
+                      key={`row-${item.slug}-${generation}-${tldFilter}-${i}`}
                       item={item}
                       index={i + 2}
                       tldFilter={tldFilter}

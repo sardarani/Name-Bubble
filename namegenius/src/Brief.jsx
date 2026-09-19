@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 const TLDS = ['.com', '.io', '.co', 'any TLD']
 
-function Brief({ initial, onFindNames, onQuestions }) {
+function Brief({ initial, savedCount = 0, onFindNames, onQuestions, onNavigate }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [competitors, setCompetitors] = useState(initial?.competitors ?? '')
@@ -41,6 +41,18 @@ function Brief({ initial, onFindNames, onQuestions }) {
         {/* header */}
         <div className="flex items-center justify-between">
           <div className="text-lg font-extrabold tracking-tight text-[#1d1b20]">Domain bubble</div>
+          {onNavigate && savedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigate('shortlist')}
+              className="inline-flex items-center gap-2 rounded-full border border-[#ffe2d6] bg-[#fff0e6] px-4 py-1.5 text-[13px] font-semibold text-[#d95d1e] shadow-sm transition-all hover:bg-[#ffe2d6] active:scale-[0.98]"
+            >
+              <span className="text-[14px]">♥</span> Favorites
+              <span className="rounded-full bg-[#d95d1e] px-2 py-0.5 text-[10px] font-extrabold leading-none text-white">
+                {savedCount}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* hero section */}

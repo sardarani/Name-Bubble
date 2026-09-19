@@ -142,5 +142,5 @@ export function generateNames(brief, generation = 0, answers = {}) {
     })
   }
 
-  return items.slice(0, 18)
+  return items.slice(0, 45)
 }
