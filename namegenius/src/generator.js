@@ -110,6 +110,7 @@ function buildCandidates(seed, mods) {
  * Synchronous local name generator (offline fallback & instant initial render).
  */
 export function generateNames(brief, generation = 0, answers = {}) {
+  if (!brief?.name?.trim()) return []
   const seedTokens = tokens(brief?.name)
   const seed = seedTokens[0] || 'brand'
   const baseMods = [
@@ -150,6 +151,7 @@ export function generateNames(brief, generation = 0, answers = {}) {
  * Pads with local candidates if Gemini is slow, missing key, or returns too few items.
  */
 export async function generateNamesAsync(brief, generation = 0, answers = {}) {
+  if (!brief?.name?.trim()) return []
   const seedTokens = tokens(brief?.name)
   const seed = seedTokens[0] || 'brand'
   const baseMods = [

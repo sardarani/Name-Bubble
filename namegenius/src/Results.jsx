@@ -31,25 +31,44 @@ function Results({
 }) {
   const [tldFilter, setTldFilter] = useState('any TLD')
   const [lengthFilter, setLengthFilter] = useState('any')
-  const [items, setItems] = useState(() => generateNames(brief, generation, answers))
-  const [isLiveLoading, setIsLiveLoading] = useState(true)
+  const [items, setItems] = useState(() => (brief?.name?.trim() ? generateNames(brief, generation, answers) : []))
+  const [isLiveLoading, setIsLiveLoading] = useState(false)
+  const [errorState, setErrorState] = useState(null)
+  const [retryCount, setRetryCount] = useState(0)
+
+  const hasQuery = Boolean(brief?.name?.trim())
 
   useEffect(() => {
     let active = true
+    setErrorState(null)
+
+    // Situation 1: Nothing typed in yet - results stay empty, zero background requests executed
+    if (!hasQuery) {
+      setItems([])
+      setIsLiveLoading(false)
+      return
+    }
+
+    // Situation 2 & 4: Search or single-field input in progress
     setIsLiveLoading(true)
 
-    // Initial local fallback render for instant feedback
+    // Render initial instant candidate pool for zero-delay UX
     setItems(generateNames(brief, generation, answers))
 
-    // Fetch real Gemini ideas + live domain availability asynchronously
+    // Fetch real Gemini ideas + live RDAP/DNS domain availability
     generateNamesAsync(brief, generation, answers)
       .then((liveItems) => {
         if (active && liveItems && liveItems.length > 0) {
           setItems(liveItems)
+          setErrorState(null)
         }
       })
       .catch((err) => {
-        console.warn('Failed async name generation, keeping local fallback:', err)
+        // Situation 3: Something goes wrong - capture error, offer retry, never crash
+        if (active) {
+          console.warn('Failed async name generation:', err)
+          setErrorState(err.message || 'Unable to connect to live domain services.')
+        }
       })
       .finally(() => {
         if (active) {
@@ -60,7 +79,12 @@ function Results({
     return () => {
       active = false
     }
-  }, [brief, generation, answers])
+  }, [brief, generation, answers, retryCount, hasQuery])
+
+  const handleRetry = () => {
+    setErrorState(null)
+    setRetryCount((c) => c + 1)
+  }
 
   const filtered = items.filter(
     (i) => matchesTld(i, tldFilter) && matchesLength(i, lengthFilter)
@@ -118,106 +142,157 @@ function Results({
           </div>
         </div>
 
-
-
-        {/* follow-up question band (after 3 regenerations) */}
-        {pendingQuestion !== null ? (
-          <FollowUpBand
-            question={QUESTIONS[pendingQuestion]}
-            onSubmit={onAnswerFollowUp}
-            onSkip={onSkipFollowUp}
-          />
+        {/* Situation 1: Nothing typed in yet */}
+        {!hasQuery ? (
+          <div className="mt-12 flex flex-col items-center justify-center rounded-[24px] border border-dashed border-[#ffe2d6] bg-[#fff9f6] p-12 text-center shadow-sm">
+            <span className="text-[40px]">⚡︎</span>
+            <h2 className="mt-3 text-[24px] font-extrabold tracking-tight text-[#1d1b20]">
+              Nothing typed in yet
+            </h2>
+            <p className="mt-2 max-w-[440px] text-[15px] font-normal leading-[1.5] text-[#8a8a8a]">
+              Type a name or keyword on the search screen to find live Gemini AI ideas and domain availability. No requests are sent until you search.
+            </p>
+            <button
+              type="button"
+              onClick={onNewSearch}
+              className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#1d1b20] px-7 py-3 text-[14px] font-extrabold text-white shadow-md transition-all hover:bg-[#333]"
+            >
+              ← Start a search
+            </button>
+          </div>
         ) : (
           <>
-            {/* Top selection filter bar (shown on S2 results screen) */}
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-full border border-[#ffe2d6] bg-[#fff9f6] px-7 py-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-                <FilterTabs
-                  label="TLD"
-                  options={TLD_FILTERS}
-                  value={tldFilter}
-                  onChange={setTldFilter}
-                  short={{ 'any TLD': 'any' }}
-                  monoFor={['.com', '.io', '.co']}
-                />
-                <div className="hidden h-5 w-px bg-[#ffe2d6] sm:block" />
-                <FilterTabs
-                  label="Length"
-                  options={LENGTH_FILTERS}
-                  value={lengthFilter}
-                  onChange={setLengthFilter}
-                />
+            {/* Situation 3: Error & Retry Alert Banner */}
+            {errorState && (
+              <div role="alert" className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-[#1d1b20] bg-[#1d1b20] p-7 text-[#fef7ff] shadow-md">
+                <div>
+                  <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#ffe2d6]">
+                    Connection Status
+                  </div>
+                  <h3 className="mt-1 text-[18px] font-bold text-white">
+                    {errorState}
+                  </h3>
+                  <p className="mt-0.5 text-[13px] text-[#cac4d0]">
+                    Showing local name candidates. Click retry to attempt live Gemini & domain lookups again.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#fef7ff] px-6 py-2.5 text-[14px] font-extrabold text-[#1d1b20] transition-all hover:bg-[#cac4d0]"
+                >
+                  <RegenerateIcon /> Retry Search
+                </button>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#ffe2d6] bg-white px-4 py-1.5 text-[12px] font-semibold text-[#1d1b20] shadow-sm">
-                <span className={`size-2 rounded-full ${isLiveLoading ? 'bg-[#3b82f6]' : 'bg-[#16a34a]'} animate-pulse`} />
-                {isLiveLoading ? 'Checking live availability…' : `${filtered.length} names available`}
-              </div>
-            </div>
+            )}
 
-            {shown.length === 0 ? (
-              <div className="mt-8 rounded-[24px] border border-dashed border-[#cac4d0] bg-[#fef7ff] py-24 text-center text-[17px] text-[#8a8a8a]">
-                No names match this filter. Try “any” length or Regenerate.
-              </div>
+            {/* follow-up question band (after 3 regenerations) */}
+            {pendingQuestion !== null ? (
+              <FollowUpBand
+                question={QUESTIONS[pendingQuestion]}
+                onSubmit={onAnswerFollowUp}
+                onSkip={onSkipFollowUp}
+              />
             ) : (
-              <div className="relative mt-8">
-                {/* Dashed Guideline connecting cards */}
-                <div className="absolute inset-y-0 left-1/2 hidden -translate-x-1/2 border-l-2 border-dashed border-[#dcdad8] sm:block" />
+              <>
+                {/* Situation 2: Top selection filter bar showing screen-wide request in progress indicator */}
+                <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-full border border-[#ffe2d6] bg-[#fff9f6] px-7 py-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                    <FilterTabs
+                      label="TLD"
+                      options={TLD_FILTERS}
+                      value={tldFilter}
+                      onChange={setTldFilter}
+                      short={{ 'any TLD': 'any' }}
+                      monoFor={['.com', '.io', '.co']}
+                    />
+                    <div className="hidden h-5 w-px bg-[#ffe2d6] sm:block" />
+                    <FilterTabs
+                      label="Length"
+                      options={LENGTH_FILTERS}
+                      value={lengthFilter}
+                      onChange={setLengthFilter}
+                    />
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#ffe2d6] bg-white px-4 py-1.5 text-[12px] font-semibold text-[#1d1b20] shadow-sm">
+                    <span className={`size-2 rounded-full ${isLiveLoading ? 'bg-[#2563eb] animate-pulse' : 'bg-[#16a34a]'}`} />
+                    {isLiveLoading ? 'Checking live availability…' : `${filtered.length} names available`}
+                  </div>
+                </div>
 
-                <div className="relative flex flex-col gap-8">
-                  {/* 1. Inline Card Control: Dedicated Regenerate Button Bar on Top */}
-                  <div className="relative z-10 mx-auto w-full max-w-[680px]">
-                    <div className="flex flex-wrap items-center justify-between gap-4 rounded-full border border-[#cac4d0] bg-white px-7 py-3.5 shadow-md transition-all hover:border-[#1d1b20]">
-                      <div className="flex items-center gap-3">
-                        <span className="size-2.5 rounded-full bg-[#1d1b20] animate-pulse" />
-                        <span className="text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#1d1b20]">
-                          Generate Fresh Ideas
-                        </span>
-                        <span className="hidden text-[12px] font-semibold text-[#8a8a8a] sm:inline">
-                          — Reshuffle batch algorithm
-                        </span>
+                {shown.length === 0 ? (
+                  <div className="mt-8 rounded-[24px] border border-dashed border-[#cac4d0] bg-[#fef7ff] py-24 text-center text-[17px] text-[#8a8a8a]">
+                    No names match this filter. Try “any” length or Regenerate.
+                  </div>
+                ) : (
+                  <div className="relative mt-8">
+                    {/* Dashed Guideline connecting cards */}
+                    <div className="absolute inset-y-0 left-1/2 hidden -translate-x-1/2 border-l-2 border-dashed border-[#dcdad8] sm:block" />
+
+                    <div className="relative flex flex-col gap-8">
+                      {/* 1. Inline Card Control: Dedicated Regenerate Button Bar on Top */}
+                      <div className="relative z-10 mx-auto w-full max-w-[680px]">
+                        <div className="flex flex-wrap items-center justify-between gap-4 rounded-full border border-[#cac4d0] bg-white px-7 py-3.5 shadow-md transition-all hover:border-[#1d1b20]">
+                          <div className="flex items-center gap-3">
+                            <span className={`size-2.5 rounded-full ${isLiveLoading ? 'bg-[#2563eb] animate-pulse' : 'bg-[#1d1b20]'}`} />
+                            <span className="text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#1d1b20]">
+                              {isLiveLoading ? 'Fetching Live AI Ideas' : 'Generate Fresh Ideas'}
+                            </span>
+                            <span className="hidden text-[12px] font-semibold text-[#8a8a8a] sm:inline">
+                              — {isLiveLoading ? 'Gemini 1.5 + Real RDAP lookups' : 'Reshuffle batch algorithm'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={onRegenerate}
+                            disabled={pendingQuestion !== null || isLiveLoading}
+                            className={
+                              'flex items-center gap-2.5 rounded-full px-6 py-2 text-[14px] font-extrabold text-[#fef7ff] transition-all ' +
+                              (isLiveLoading || pendingQuestion !== null
+                                ? 'cursor-not-allowed bg-[#8a8a8a]'
+                                : 'bg-[#1d1b20] hover:bg-[#333] active:scale-[0.98]')
+                            }
+                          >
+                            <RegenerateIcon />
+                            {isLiveLoading ? 'Generating…' : 'Regenerate'}
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={onRegenerate}
-                        disabled={pendingQuestion !== null}
-                        className="flex items-center gap-2.5 rounded-full bg-[#1d1b20] px-6 py-2 text-[14px] font-extrabold text-[#fef7ff] transition-all hover:bg-[#333] active:scale-[0.98]"
-                      >
-                        <RegenerateIcon />
-                        Regenerate
-                      </button>
+
+                      {/* 2. Skale Pinned Top Pick Card (Index 01) */}
+                      {topPick && (
+                        <SkaleCard
+                          key={`top-${topPick.slug}-${generation}-${tldFilter}`}
+                          item={topPick}
+                          index={1}
+                          tldFilter={tldFilter}
+                          isSaved={isSaved(topPick)}
+                          isComparing={isComparing(topPick)}
+                          onToggleSaved={() => onToggleSaved(topPick)}
+                          onToggleCompare={() => onToggleCompare(topPick)}
+                          isTopPick
+                          isLiveLoading={isLiveLoading}
+                        />
+                      )}
+
+                      {/* 3. Skale Staggered Note Deck Rows (Index 02 to 05) */}
+                      {rest.map((item, i) => (
+                        <SkaleCard
+                          key={`row-${item.slug}-${generation}-${tldFilter}-${i}`}
+                          item={item}
+                          index={i + 2}
+                          tldFilter={tldFilter}
+                          isSaved={isSaved(item)}
+                          isComparing={isComparing(item)}
+                          onToggleSaved={() => onToggleSaved(item)}
+                          onToggleCompare={() => onToggleCompare(item)}
+                          isLiveLoading={isLiveLoading}
+                        />
+                      ))}
                     </div>
                   </div>
-
-                  {/* 2. Skale Pinned Top Pick Card (Index 01) */}
-                  {topPick && (
-                    <SkaleCard
-                      key={`top-${topPick.slug}-${generation}-${tldFilter}`}
-                      item={topPick}
-                      index={1}
-                      tldFilter={tldFilter}
-                      isSaved={isSaved(topPick)}
-                      isComparing={isComparing(topPick)}
-                      onToggleSaved={() => onToggleSaved(topPick)}
-                      onToggleCompare={() => onToggleCompare(topPick)}
-                      isTopPick
-                    />
-                  )}
-
-                  {/* 3. Skale Staggered Note Deck Rows (Index 02 to 05) */}
-                  {rest.map((item, i) => (
-                    <SkaleCard
-                      key={`row-${item.slug}-${generation}-${tldFilter}-${i}`}
-                      item={item}
-                      index={i + 2}
-                      tldFilter={tldFilter}
-                      isSaved={isSaved(item)}
-                      isComparing={isComparing(item)}
-                      onToggleSaved={() => onToggleSaved(item)}
-                      onToggleCompare={() => onToggleCompare(item)}
-                    />
-                  ))}
-                </div>
-              </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -263,6 +338,7 @@ export function SkaleCard({
   isComparing = false,
   onToggleCompare = () => {},
   isTopPick = false,
+  isLiveLoading = false,
 }) {
   const cardName = propName || item?.name || ''
   const cardDomain = propDomain || (item ? domainFor(item, tldFilter) : '')
@@ -271,7 +347,7 @@ export function SkaleCard({
   const theme = CARD_THEMES[(index - 1) % CARD_THEMES.length]
   const formattedIndex = String(index).padStart(2, '0')
   const isEven = index % 2 === 0
-  const staggerDelay = (index - 1) * 150 // 0ms, 150ms, 300ms, 450ms...
+  const staggerDelay = (index - 1) * 150
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -323,7 +399,7 @@ export function SkaleCard({
           </div>
 
           <div className="flex items-center gap-5">
-            <StatusTag available={isCardAvailable} />
+            <StatusTag available={isCardAvailable} checking={isLiveLoading} />
             <Actions
               domain={cardDomain}
               isSaved={isSaved}
@@ -378,18 +454,6 @@ function FollowUpBand({ question, onSubmit, onSkip }) {
   )
 }
 
-function NavLink({ onClick, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center rounded-full border border-[#cac4d0] bg-white px-4 py-1.5 text-[13px] font-semibold text-[#1d1b20] shadow-sm transition-all hover:bg-[#fef7ff]"
-    >
-      {children}
-    </button>
-  )
-}
-
 function FilterTabs({ label, options, value, onChange, short = {}, monoFor = [] }) {
   return (
     <div className="flex items-center gap-3">
@@ -423,32 +487,15 @@ function FilterTabs({ label, options, value, onChange, short = {}, monoFor = [] 
   )
 }
 
-function TldStrip({ item, bold }) {
-  return (
-    <div className="flex items-center gap-3 font-mono text-[13px]">
-      {['.com', '.io', '.co'].map((t) =>
-        item.tlds[t] ? (
-          <span key={t} className="font-bold text-[#1d1b20]">
-            {t}
-          </span>
-        ) : (
-          <span key={t} className="text-[#8a8a8a] line-through">
-            {t}
-          </span>
-        )
-      )}
-      {bold && (
-        <span className="font-sans text-[12px] font-bold text-[#8a8a8a]">
-          {availableTlds(item).length === 3
-            ? 'all three free'
-            : `${availableTlds(item).length} free`}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function StatusTag({ available }) {
+function StatusTag({ available, checking }) {
+  if (checking || available === 'checking') {
+    return (
+      <div className="flex items-center gap-2 rounded-full border border-[#2563eb]/60 bg-[#eff6ff] px-4 py-1.5 text-[11px] font-semibold tracking-[0.05em] text-[#1d4ed8]">
+        <span className="size-2 rounded-full bg-[#2563eb] animate-pulse" />
+        CHECKING...
+      </div>
+    )
+  }
   return available ? (
     <div className="flex items-center gap-2 rounded-full border border-[#16a34a]/60 bg-[#f0fdf4] px-4 py-1.5 text-[11px] font-semibold tracking-[0.05em] text-[#15803d]">
       <span className="size-2 rounded-full bg-[#16a34a]" />
