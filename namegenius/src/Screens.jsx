@@ -149,7 +149,15 @@ export function Shortlist({ saved, onRemove, onBack, onNavigate }) {
 }
 
 // S5 — Compare
-export function Compare({ compareSel, onClear, onBack, onNavigate }) {
+export function Compare({
+  compareSel = [],
+  onRemove = () => {},
+  onSwap = () => {},
+  onClear = () => {},
+  onBack = () => {},
+  onNavigate = () => {},
+  availablePool = [],
+}) {
   const rows = [
     {
       label: 'Available TLDs',
@@ -188,16 +196,56 @@ export function Compare({ compareSel, onClear, onBack, onNavigate }) {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {compareSel.map((item, col) => {
           const theme = CARD_THEMES[col % CARD_THEMES.length]
+          const swapCandidates = availablePool.filter(
+            (candidate) => !compareSel.some((s) => s.slug === candidate.slug)
+          )
+
           return (
             <div
               key={item.slug}
               className={`overflow-hidden rounded-[24px] border ${theme.border} ${theme.bg} p-8 shadow-sm`}
             >
-              <div className="text-[28px] font-semibold text-[#1d1b20]">
-                {item.name}
-              </div>
-              <div className="mt-1.5 font-mono text-[15px] font-semibold text-[#8a8a8a]">
-                {domainFor(item, 'any TLD')}
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[28px] font-semibold text-[#1d1b20]">
+                    {item.name}
+                  </div>
+                  <div className="mt-1.5 font-mono text-[15px] font-semibold text-[#8a8a8a]">
+                    {domainFor(item, 'any TLD')}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {swapCandidates.length > 0 && (
+                    <select
+                      aria-label="Switch card name"
+                      value=""
+                      onChange={(e) => {
+                        const candidate = swapCandidates.find((c) => c.slug === e.target.value)
+                        if (candidate) onSwap(item, candidate)
+                      }}
+                      className="rounded-full border border-[#cac4d0] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1d1b20] outline-none shadow-sm transition-all hover:border-[#1d1b20]"
+                    >
+                      <option value="" disabled>
+                        ⇄ Switch name
+                      </option>
+                      {swapCandidates.map((candidate) => (
+                        <option key={candidate.slug} value={candidate.slug}>
+                          {candidate.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${item.name} from compare`}
+                    title="Remove card"
+                    onClick={() => onRemove(item)}
+                    className="flex size-8 items-center justify-center rounded-full bg-[#1d1b20] text-[16px] leading-none text-white shadow-sm transition-transform hover:scale-105 active:scale-95"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
               <dl className="mt-6 flex flex-col gap-5 border-t border-[#ffe2d6] pt-5">
                 {rows.map((row) => (

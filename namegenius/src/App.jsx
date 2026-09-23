@@ -3,6 +3,7 @@ import Brief from './Brief'
 import Results from './Results'
 import { Shortlist, Compare, Questions } from './Screens'
 import { QUESTIONS } from './data'
+import { generateNames } from './generator'
 
 const EMPTY_BRIEF = { name: '', description: '', competitors: '', tld: '.com' }
 const REGENS_BEFORE_QUESTION = 3
@@ -184,6 +185,11 @@ function App() {
       return (
         <Compare
           compareSel={compareSel}
+          availablePool={generateNames(brief, generation, answers)}
+          onRemove={toggleCompare}
+          onSwap={(oldItem, newItem) => {
+            setCompareSel((sel) => sel.map((s) => (s.slug === oldItem.slug ? newItem : s)))
+          }}
           onClear={() => setCompareSel([])}
           onBack={back}
           onNavigate={navigate}
