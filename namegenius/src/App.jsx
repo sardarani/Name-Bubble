@@ -55,14 +55,31 @@ function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [view])
 
+  const SHORTLIST_STORAGE_KEY = 'namegenius_shortlist'
+
   // Shared, app-wide state so every screen works off the same data.
   const [brief, setBrief] = useState(EMPTY_BRIEF)
-  const [saved, setSaved] = useState([]) // name items on the shortlist
+  const [saved, setSaved] = useState(() => {
+    try {
+      const raw = localStorage.getItem(SHORTLIST_STORAGE_KEY)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  }) // name items on the shortlist (persisted across refresh)
   const [compareSel, setCompareSel] = useState([]) // up to 2 name items
   const [answers, setAnswers] = useState({}) // brand-discovery answers by index
   const [generation, setGeneration] = useState(0) // bump to reshuffle results
   const [regenCount, setRegenCount] = useState(0) // regens since last question
   const [pendingQuestion, setPendingQuestion] = useState(null) // index or null
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHORTLIST_STORAGE_KEY, JSON.stringify(saved))
+    } catch {
+      // Fail silently if storage is unavailable
+    }
+  }, [saved])
 
   // History-aware navigation: Back always returns to the previous screen.
   const navigate = (next) => {
